@@ -1,0 +1,6 @@
+[build]
+  publish = "build"        # 你的静态网页目录（可改）
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
