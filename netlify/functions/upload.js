@@ -1,79 +1,71 @@
-// /netlify/functions/upload.js
-
 import { Octokit } from "@octokit/rest";
 
-const headers = {
-  "Access-Control-Allow-Origin": "*",             // ← 允许所有源调用（可改成你的域名）
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",      // ⚠ 如果你希望更安全可换指定域
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+// 统一 CORS 响应函数
+function response(statusCode, bodyObject) {
+  return {
+    statusCode,
+    headers: corsHeaders,
+    body: JSON.stringify(bodyObject),
+  };
+}
+
 export const handler = async (event) => {
-  // 处理预检请求（browser preflight）
+  // ===== OPTIONS: Preflight =====
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
-      headers,
+      headers: corsHeaders,
       body: "OK",
     };
   }
 
   if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      headers,
-      body: "Method Not Allowed",
-    };
+    return response(405, { error: "Method not allowed" });
   }
 
+  let body;
   try {
-    const body = JSON.parse(event.body);
+    body = JSON.parse(event.body);
+  } catch (e) {
+    return response(400, { error: "Invalid JSON" });
+  }
 
-    const {
-      fileBase64,
-      fileName,
-      name,
-      className,
-      type,
-      sentence = "",
-      portraitApproval = false,
-    } = body;
+  // required fields
+  const { fileBase64, fileName, name, className, type } = body;
+  if (!fileBase64 || !fileName || !name || !className || !type) {
+    return response(400, { error: "Missing fields" });
+  }
 
-    if (!fileBase64 || !fileName || !name || !className || !type) {
-      return {
-        statusCode: 400,
-        headers,
-        body: "Missing fields",
-      };
-    }
+  const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-    const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+  const owner = "你的GitHub用户名";
+  const repo = "你的仓库名";
+  const folder = "submissions";
 
-    const owner = "bbezStuUnion";
-    const repo = "OmniaFrame";
-    const folder = "submissions";
+  const ts = new Date().toISOString().replace(/[:.]/g, "-");
 
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const imagePath = `${folder}/${ts}_${fileName}`;
+  const jsonPath = `${folder}/${ts}.json`;
 
-    const imagePath = `${folder}/${timestamp}_${fileName}`;
-    const metaPath = `${folder}/${timestamp}.json`;
+  const meta = {
+    ...body,
+    storedAt: new Date().toISOString(),
+    file: imagePath,
+  };
 
-    const meta = {
-      name,
-      class: className,
-      type,
-      sentence,
-      portraitApproval,
-      file: imagePath,
-      time: new Date().toISOString(),
-    };
-
-    // 上传图片
+  try {
+    // 上传文件
     await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
       path: imagePath,
-      message: `upload ${timestamp}_${fileName}`,
+      message: `upload ${imagePath}`,
       content: fileBase64,
     });
 
@@ -81,27 +73,27 @@ export const handler = async (event) => {
     await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
-      path: metaPath,
-      message: `upload ${timestamp}.json`,
+      path: jsonPath,
+      message: `upload ${jsonPath}`,
       content: Buffer.from(JSON.stringify(meta, null, 2)).toString("base64"),
     });
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        ok: true,
-        image: imagePath,
-        meta: metaPath,
-      }),
-    };
+    // ==========================
+    // 返回成功（保证包含 CORS header）
+    // ==========================
+    return response(200, {
+      ok: true,
+      message: "Uploaded successfully",
+      image: imagePath,
+      metadata: jsonPath,
+    });
+
   } catch (err) {
     console.error("Upload error:", err);
 
-    return {
-      statusCode: 500,
-      headers,
-      body: JSON.stringify({ error: err.message }),
-    };
+    return response(500, {
+      ok: false,
+      error: err.message,
+    });
   }
 };
