@@ -44,8 +44,8 @@ export const handler = async (event) => {
 
   const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
 
-  const owner = "你的GitHub用户名";
-  const repo = "你的仓库名";
+  const owner = "bbezStuUnion";
+  const repo = "OmniaFrame";
   const folder = "submissions";
 
   const ts = new Date().toISOString().replace(/[:.]/g, "-");
