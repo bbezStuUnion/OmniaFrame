@@ -1,99 +1,97 @@
 import { Octokit } from "@octokit/rest";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",      // ⚠ 如果你希望更安全可换指定域
+const headers = {
+  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json"
 };
 
-// 统一 CORS 响应函数
-function response(statusCode, bodyObject) {
+// 统一响应
+function respond(status, obj) {
   return {
-    statusCode,
-    headers: corsHeaders,
-    body: JSON.stringify(bodyObject),
+    statusCode: status,
+    headers,
+    body: JSON.stringify(obj)
   };
 }
 
 export const handler = async (event) => {
-  // ===== OPTIONS: Preflight =====
+
+  // --- 预检请求 ---
   if (event.httpMethod === "OPTIONS") {
     return {
       statusCode: 200,
-      headers: corsHeaders,
-      body: "OK",
+      headers,
+      body: "OK"
     };
   }
 
   if (event.httpMethod !== "POST") {
-    return response(405, { error: "Method not allowed" });
+    return respond(405, { error: "Method Not Allowed" });
   }
 
-  let body;
+  let data;
   try {
-    body = JSON.parse(event.body);
+    data = JSON.parse(event.body);
   } catch (e) {
-    return response(400, { error: "Invalid JSON" });
+    return respond(400, { error: "Invalid JSON" });
   }
 
-  // required fields
-  const { fileBase64, fileName, name, className, type } = body;
-  if (!fileBase64 || !fileName || !name || !className || !type) {
-    return response(400, { error: "Missing fields" });
+  const { fileBase64, name, className, type, sentence = "", portraitApproval = false } = data;
+  if (!fileBase64 || !name || !className || !type) {
+    return respond(400, { error: "Missing fields" });
   }
-
-  const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
-
-  const owner = "bbezStuUnion";
-  const repo = "OmniaFrame";
-  const folder = "submissions";
-
-  const ts = new Date().toISOString().replace(/[:.]/g, "-");
-
-  const imagePath = `${folder}/${ts}_${fileName}`;
-  const jsonPath = `${folder}/${ts}.json`;
-
-  const meta = {
-    ...body,
-    storedAt: new Date().toISOString(),
-    file: imagePath,
-  };
 
   try {
-    // 上传文件
+    const octokit = new Octokit({ auth: process.env.GITHUB_TOKEN });
+
+    const owner = "你的GitHub用户名";
+    const repo = "你的仓库名";
+    const folder = "submissions";
+
+    // 统一命名：例如 2025-11-14-12-59-33_abc123.jpg
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const random = Math.random().toString(36).slice(2, 10);
+    const imageFile = `${folder}/${ts}_${random}.jpg`;  // 文件名不再使用原始名称
+    const jsonFile = `${folder}/${ts}_${random}.json`;
+
+    // 1. 上传图片
     await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
-      path: imagePath,
-      message: `upload ${imagePath}`,
-      content: fileBase64,
+      path: imageFile,
+      message: `upload image ${imageFile}`,
+      content: fileBase64
     });
 
-    // 上传 JSON
+    // 2. 上传 JSON（不包含 base64）
+    const jsonPayload = {
+      name,
+      class: className,
+      type,
+      sentence,
+      portraitApproval,
+      image: imageFile,        // 仅保存文件路径
+      time: new Date().toISOString()
+    };
+
     await octokit.repos.createOrUpdateFileContents({
       owner,
       repo,
-      path: jsonPath,
-      message: `upload ${jsonPath}`,
-      content: Buffer.from(JSON.stringify(meta, null, 2)).toString("base64"),
+      path: jsonFile,
+      message: `upload metadata ${jsonFile}`,
+      content: Buffer.from(JSON.stringify(jsonPayload, null, 2)).toString("base64")
     });
 
-    // ==========================
-    // 返回成功（保证包含 CORS header）
-    // ==========================
-    return response(200, {
+    return respond(200, {
       ok: true,
-      message: "Uploaded successfully",
-      image: imagePath,
-      metadata: jsonPath,
+      image: imageFile,
+      metadata: jsonFile
     });
 
   } catch (err) {
     console.error("Upload error:", err);
-
-    return response(500, {
-      ok: false,
-      error: err.message,
-    });
+    return respond(500, { ok: false, error: err.message });
   }
 };
