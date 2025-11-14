@@ -1,0 +1,10 @@
+{
+  "name": "netlify-art-upload",
+  "version": "1.0.0",
+  "description": "Netlify Function for uploading art submissions to GitHub",
+  "main": "index.js",
+  "type": "module",
+  "dependencies": {
+    "@octokit/rest": "^20.1.1"
+  }
+}
