@@ -1,0 +1,25 @@
+name: Create Monthly Folder
+
+on:
+  schedule:
+    - cron: "0 0 1 * *"   # 每月1号 00:00 创建
+
+jobs:
+  create-folder:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Create folder
+        run: |
+          month=$(date +"%Y-%m")
+          mkdir -p "approved/$month"
+          touch "approved/$month/.gitkeep"
+          
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          git add .
+          git commit -m "create month folder $month" || true
+          git push
