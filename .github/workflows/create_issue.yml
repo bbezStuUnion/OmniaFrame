@@ -1,4 +1,4 @@
-name: Create Issue on New submissions
+name: Create Issue on New pictures
 
 permissions:
   issues: write
@@ -7,7 +7,7 @@ permissions:
 on:
   push:
     paths:
-      - "submissions/pictures/**"
+      - "submissions/pictures/**"   # 仅图片目录变动触发
 
 jobs:
   create-issue:
@@ -23,30 +23,69 @@ jobs:
           touch submissions/pictures/.gitkeep
           touch submissions/json/.gitkeep
 
-      - name: Find changed images
+      - name: Detect *added* images only
         id: diff
         uses: tj-actions/changed-files@v45
         with:
           files: submissions/pictures/**
+          json: true
 
-      - name: Process submissions
-        if: steps.diff.outputs.all_changed_files != ''
+      - name: Output debug info
         run: |
-          for file in ${{ steps.diff.outputs.all_changed_files }}; do
+          echo "Added files: ${{ steps.diff.outputs.added_files }}"
+
+      - name: Create Issue for each new image
+        if: steps.diff.outputs.added_files != ''
+        run: |
+          for file in ${{ steps.diff.outputs.added_files }}; do
             image=$(basename "$file")
             base="${image%.*}"
             json_path="submissions/json/$base.json"
 
+            echo "新图片：$image"
+
             if [[ ! -f "$json_path" ]]; then
-              echo "No json for $image, skip"
+              echo "⚠ 找不到对应 JSON：$json_path，跳过"
               continue
             fi
 
-            body=$(cat "$json_path")
+            # 解析 JSON
+            title=$(jq -r '.标题 // "未填写"' "$json_path")
+            name=$(jq -r '.提交者姓名 // "未填写"' "$json_path")
+            class=$(jq -r '.提交者班级 // "未填写"' "$json_path")
+            type=$(jq -r '.作品类型 // "未填写"' "$json_path")
+            sentence=$(jq -r '.一句话 // "无"' "$json_path")
+            authorized=$(jq -r '.肖像授权 // "否"' "$json_path")
+
+            # Markdown 内容（含图片）
+            body_md=$(cat <<EOF
+              ### 📸 新投稿：$base
+
+              #### 🖼️ 图片预览
+              ![预览图]($file)
+
+              ---
+
+               📝 投稿信息
+              - **标题**：$title  
+              - **提交者**：$name  
+              - **班级**：$class  
+              - **作品类型**：$type  
+              - **一句话**：$sentence  
+              - **肖像授权**：$authorized  
+
+              ---
+
+              ### 📄 JSON 原文
+              \`\`\`json
+              $(cat "$json_path")
+              \`\`\`
+            EOF
+            )
 
             gh issue create \
               --title "新投稿：$base" \
-              --body "投稿内容：\n\`\`\`json\n$body\n\`\`\`\n文件：$file"
+              --body "$body_md"
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

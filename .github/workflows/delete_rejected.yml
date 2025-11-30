@@ -1,0 +1,59 @@
+name: Delete Rejected submissions
+
+permissions:
+  issues: write
+  contents: write
+
+on:
+  issues:
+    types: [labeled]
+
+jobs:
+  delete-files:
+    if: github.event.label.name == '未通过'
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract base filename from issue title
+        id: extract
+        run: |
+          title="${{ github.event.issue.title }}"
+          # 假设标题格式为 “新投稿：abc123”
+          base=$(echo "$title" | sed 's/新投稿：//')
+          echo "base=$base" >> $GITHUB_OUTPUT
+
+      - name: Delete pictures and json
+        run: |
+          base="${{ steps.extract.outputs.base }}"
+
+          echo "开始删除投稿文件：$base"
+
+          # 删除 JSON
+          if [[ -f "submissions/json/$base.json" ]]; then
+            git rm "submissions/json/$base.json"
+            echo "删除 JSON：submissions/json/$base.json"
+          else
+            echo "未找到 JSON 文件"
+          fi
+
+          # 删除图片支持 jpg/jpeg/png/webp
+          deleted=0
+          for ext in jpg jpeg png webp JPG JPEG PNG WEBP; do
+            if [[ -f "submissions/pictures/$base.$ext" ]]; then
+              git rm "submissions/pictures/$base.$ext"
+              echo "删除 图片：submissions/pictures/$base.$ext"
+              deleted=1
+            fi
+          done
+
+          if [[ "$deleted" -eq 0 ]]; then
+            echo "⚠ 未找到任何相关图片"
+          fi
+
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+          git commit -m "Deleted rejected submissions: $base" || echo "无更改"
+          git push
