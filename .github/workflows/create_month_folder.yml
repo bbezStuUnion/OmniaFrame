@@ -1,5 +1,9 @@
 name: Create Monthly Folder
 
+permissions:
+  issues: write
+  contents: write
+
 on:
   schedule:
     - cron: "0 0 1 * *"   # 每月1号 00:00 创建

@@ -1,5 +1,9 @@
 name: Create Issue on New submissions
 
+permissions:
+  issues: write
+  contents: write
+
 on:
   push:
     paths:
