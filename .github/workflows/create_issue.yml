@@ -3,7 +3,7 @@ name: Create Issue on New Submission
 on:
   push:
     paths:
-      - "submission/picture/**"
+      - "submission/pictures/**"
 
 jobs:
   create-issue:
