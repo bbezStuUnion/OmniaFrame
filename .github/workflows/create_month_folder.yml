@@ -6,7 +6,7 @@ permissions:
 
 on:
   schedule:
-    - cron: "0 0 1 * *"   # 每月1号 00:00 创建
+    - cron: "0 0 1 * *"   # 每月1号执行一次
 
 jobs:
   create-folder:
@@ -15,15 +15,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create folder
+      - name: Create month folder
         run: |
           month=$(date +"%Y-%m")
-          mkdir -p "approved/$month"
-          touch "approved/$month/.gitkeep"
-          
+
+          # 创建 approved/2025-11/json 和 approved/2025-11/pictures
+          mkdir -p "approved/$month/json"
+          mkdir -p "approved/$month/pictures"
+
+          # 放置占位文件防止 git 忽略空目录
+          touch "approved/$month/json/.gitkeep"
+          touch "approved/$month/pictures/.gitkeep"
+
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
 
           git add .
-          git commit -m "create month folder $month" || true
+          git commit -m "Create folder structure for $month" || true
           git push
