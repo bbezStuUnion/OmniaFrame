@@ -7,9 +7,9 @@ from pathlib import Path
 NETLIFY_UPLOAD_URL = "https://omniaframe.netlify.app/.netlify/functions/upload"
 
 # 读取图片
-file_path = Path("picture.jpg")
+file_path = Path("pictures.jpg")
 if not file_path.exists():
-    raise FileNotFoundError("未找到 picture.jpg，请将图片放在同目录下")
+    raise FileNotFoundError("未找到 pictures.jpg，请将图片放在同目录下")
 
 with open(file_path, "rb") as f:
     file_bytes = f.read()
@@ -22,7 +22,7 @@ payload = {
     "title": "测试图片上传",
     "category": "photography",
     "description": "这是一张测试用的图片",
-    "fileName": "picture.jpg",
+    "fileName": "pictures.jpg",
     "fileData": f"data:image/jpeg;base64,{base64_file}",
 }
 

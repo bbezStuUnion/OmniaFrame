@@ -1,9 +1,9 @@
-name: Create Issue on New Submission
+name: Create Issue on New submissions
 
 on:
   push:
     paths:
-      - "submission/pictures/**"
+      - "submissions/pictures/**"
 
 jobs:
   create-issue:
@@ -14,16 +14,16 @@ jobs:
 
       - name: Ensure directories exist
         run: |
-          mkdir -p submission/picture
-          mkdir -p submission/json
-          touch submission/picture/.gitkeep
-          touch submission/json/.gitkeep
+          mkdir -p submissions/pictures
+          mkdir -p submissions/json
+          touch submissions/pictures/.gitkeep
+          touch submissions/json/.gitkeep
 
       - name: Find changed images
         id: diff
         uses: tj-actions/changed-files@v45
         with:
-          files: submission/picture/**
+          files: submissions/pictures/**
 
       - name: Process submissions
         if: steps.diff.outputs.all_changed_files != ''
@@ -31,7 +31,7 @@ jobs:
           for file in ${{ steps.diff.outputs.all_changed_files }}; do
             image=$(basename "$file")
             base="${image%.*}"
-            json_path="submission/json/$base.json"
+            json_path="submissions/json/$base.json"
 
             if [[ ! -f "$json_path" ]]; then
               echo "No json for $image, skip"

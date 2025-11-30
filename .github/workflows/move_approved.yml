@@ -1,4 +1,4 @@
-name: Move Approved Submission
+name: Move Approved submissions
 
 on:
   issues:
@@ -19,7 +19,7 @@ jobs:
           base=$(echo "$title" | sed 's/新投稿：//')
           echo "base=$base" >> $GITHUB_OUTPUT
 
-      - name: Move picture + json to month folder
+      - name: Move pictures + json to month folder
         run: |
           base="${{ steps.extract.outputs.base }}"
           month=$(date +"%Y-%m")
@@ -27,8 +27,8 @@ jobs:
           mkdir -p "approved/$month"
           touch "approved/$month/.gitkeep"
 
-          git mv "submission/picture/$base.jpg" "approved/$month/" || true
-          git mv "submission/json/$base.json" "approved/$month/" || true
+          git mv "submissions/pictures/$base.jpg" "approved/$month/" || true
+          git mv "submissions/json/$base.json" "approved/$month/" || true
 
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
