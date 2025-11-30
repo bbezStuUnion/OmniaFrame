@@ -7,7 +7,7 @@ permissions:
 on:
   push:
     paths:
-      - "submissions/pictures/**"
+      - "submissions/picturess/**"
 
 jobs:
   create-issue:
@@ -19,33 +19,35 @@ jobs:
 
       - name: Ensure directories exist
         run: |
-          mkdir -p submissions/pictures
+          mkdir -p submissions/picturess
           mkdir -p submissions/json
-          touch submissions/pictures/.gitkeep
+          touch submissions/picturess/.gitkeep
           touch submissions/json/.gitkeep
 
       - name: Find changed images
         id: diff
         uses: tj-actions/changed-files@v45
         with:
-          files: submissions/pictures/**
+          files: submissions/picturess/**
 
       - name: Create Issues
         if: steps.diff.outputs.all_changed_files != ''
         run: |
+          repo="bbezStuUnion/OmniaFrame"
+          branch="main"
+
           for file in ${{ steps.diff.outputs.all_changed_files }}; do
             filename=$(basename "$file")
             base="${filename%.*}"
             json_path="submissions/json/$base.json"
 
             if [[ ! -f "$json_path" ]]; then
-              echo "No json for $filename, skip"
+              echo "No json for $filename, skip."
               continue
             fi
 
             json=$(cat "$json_path")
 
-            # 提取字段
             name=$(jq -r '.name' <<< "$json")
             class=$(jq -r '.class' <<< "$json")
             type=$(jq -r '.type' <<< "$json")
@@ -58,7 +60,10 @@ jobs:
               auth_text="否"
             fi
 
-            # ---- 生成临时 Markdown 文件 ----
+            # 构造 RAW 图片直链
+            raw_url="https://raw.githubusercontent.com/$repo/refs/heads/$branch/$file"
+
+            # ---- 临时 Markdown 文件 ----
             tmpfile=$(mktemp)
 
             echo "### 📸 新投稿：$base" >> "$tmpfile"
@@ -72,7 +77,7 @@ jobs:
             echo "---" >> "$tmpfile"
             echo "" >> "$tmpfile"
             echo "### 🖼️ 作品预览" >> "$tmpfile"
-            echo "![图片预览](./$file)" >> "$tmpfile"
+            echo "![作品图片]($raw_url)" >> "$tmpfile"
             echo "" >> "$tmpfile"
             echo "---" >> "$tmpfile"
             echo "" >> "$tmpfile"
@@ -81,12 +86,10 @@ jobs:
             echo "$json" >> "$tmpfile"
             echo "\`\`\`" >> "$tmpfile"
 
-            # ---- 使用临时文件创建 Issue ----
             gh issue create \
               --title "新投稿：$base" \
               --body-file "$tmpfile"
 
-            # ---- 删除临时文件 ----
             rm "$tmpfile"
 
           done
