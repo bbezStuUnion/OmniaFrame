@@ -38,18 +38,17 @@ jobs:
         if: steps.diff.outputs.added_files != ''
         run: |
           for file in ${{ steps.diff.outputs.added_files }}; do
+
             image=$(basename "$file")
             base="${image%.*}"
             json_path="submissions/json/$base.json"
 
-            echo "新图片：$image"
-
             if [[ ! -f "$json_path" ]]; then
-              echo "⚠ 找不到对应 JSON：$json_path，跳过"
+              echo "⚠ 找不到 JSON：$json_path"
               continue
             fi
 
-            # 解析 JSON
+            # 读取 JSON 字段
             title=$(jq -r '.标题 // "未填写"' "$json_path")
             name=$(jq -r '.提交者姓名 // "未填写"' "$json_path")
             class=$(jq -r '.提交者班级 // "未填写"' "$json_path")
@@ -57,35 +56,38 @@ jobs:
             sentence=$(jq -r '.一句话 // "无"' "$json_path")
             authorized=$(jq -r '.肖像授权 // "否"' "$json_path")
 
-            # Markdown 内容（含图片）
-            body_md=$(cat <<EOF
-              ### 📸 新投稿：$base
+            # 生成临时正文文件（自动删除）
+            body_file="$(mktemp)"
+            {
+              echo "### 📸 新投稿：$base"
+              echo
+              echo "#### 🖼️ 图片预览"
+              echo "![预览图]($file)"
+              echo
+              echo "---"
+              echo
+              echo "### 📝 投稿信息"
+              echo "- **标题**：$title"
+              echo "- **提交者**：$name"
+              echo "- **班级**：$class"
+              echo "- **作品类型**：$type"
+              echo "- **一句话**：$sentence"
+              echo "- **肖像授权**：$authorized"
+              echo
+              echo "---"
+              echo
+              echo "### 📄 JSON 原文"
+              echo '```json'
+              cat "$json_path"
+              echo '```'
+            } > "$body_file"
 
-              #### 🖼️ 图片预览
-              ![预览图]($file)
-
-              ---
-
-               📝 投稿信息
-              - **标题**：$title  
-              - **提交者**：$name  
-              - **班级**：$class  
-              - **作品类型**：$type  
-              - **一句话**：$sentence  
-              - **肖像授权**：$authorized  
-
-              ---
-
-              ### 📄 JSON 原文
-              \`\`\`json
-              $(cat "$json_path")
-              \`\`\`
-            EOF
-            )
-
+            # 创建 Issue
             gh issue create \
               --title "新投稿：$base" \
-              --body "$body_md"
+              --body-file "$body_file"
+
+            rm "$body_file"
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
