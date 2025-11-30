@@ -1,4 +1,4 @@
-name: Create Issue on New pictures
+name: Create Issue on New submissions
 
 permissions:
   issues: write
@@ -7,14 +7,15 @@ permissions:
 on:
   push:
     paths:
-      - "submissions/pictures/**"   # 仅图片目录变动触发
+      - "submissions/pictures/**"
 
 jobs:
   create-issue:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Ensure directories exist
         run: |
@@ -23,71 +24,71 @@ jobs:
           touch submissions/pictures/.gitkeep
           touch submissions/json/.gitkeep
 
-      - name: Detect *added* images only
+      - name: Find changed images
         id: diff
         uses: tj-actions/changed-files@v45
         with:
           files: submissions/pictures/**
-          json: true
 
-      - name: Output debug info
+      - name: Create Issues
+        if: steps.diff.outputs.all_changed_files != ''
         run: |
-          echo "Added files: ${{ steps.diff.outputs.added_files }}"
-
-      - name: Create Issue for each new image
-        if: steps.diff.outputs.added_files != ''
-        run: |
-          for file in ${{ steps.diff.outputs.added_files }}; do
-
-            image=$(basename "$file")
-            base="${image%.*}"
+          for file in ${{ steps.diff.outputs.all_changed_files }}; do
+            filename=$(basename "$file")
+            base="${filename%.*}"
             json_path="submissions/json/$base.json"
 
             if [[ ! -f "$json_path" ]]; then
-              echo "⚠ 找不到 JSON：$json_path"
+              echo "No json for $filename, skip"
               continue
             fi
 
-            # 读取 JSON 字段
-            title=$(jq -r '.标题 // "未填写"' "$json_path")
-            name=$(jq -r '.提交者姓名 // "未填写"' "$json_path")
-            class=$(jq -r '.提交者班级 // "未填写"' "$json_path")
-            type=$(jq -r '.作品类型 // "未填写"' "$json_path")
-            sentence=$(jq -r '.一句话 // "无"' "$json_path")
-            authorized=$(jq -r '.肖像授权 // "否"' "$json_path")
+            json=$(cat "$json_path")
 
-            # 生成临时正文文件（自动删除）
-            body_file="$(mktemp)"
-            {
-              echo "### 📸 新投稿：$base"
-              echo
-              echo "#### 🖼️ 图片预览"
-              echo "![预览图]($file)"
-              echo
-              echo "---"
-              echo
-              echo "### 📝 投稿信息"
-              echo "- **标题**：$title"
-              echo "- **提交者**：$name"
-              echo "- **班级**：$class"
-              echo "- **作品类型**：$type"
-              echo "- **一句话**：$sentence"
-              echo "- **肖像授权**：$authorized"
-              echo
-              echo "---"
-              echo
-              echo "### 📄 JSON 原文"
-              echo '```json'
-              cat "$json_path"
-              echo '```'
-            } > "$body_file"
+            # 提取字段
+            name=$(jq -r '.name' <<< "$json")
+            class=$(jq -r '.class' <<< "$json")
+            type=$(jq -r '.type' <<< "$json")
+            sentence=$(jq -r '.sentence // ""' <<< "$json")
+            authorized=$(jq -r '.authorized' <<< "$json")
 
-            # 创建 Issue
+            if [[ "$authorized" == "true" ]]; then
+              auth_text="是（已获得肖像权授权）"
+            else
+              auth_text="否"
+            fi
+
+            # ---- 生成临时 Markdown 文件 ----
+            tmpfile=$(mktemp)
+
+            echo "### 📸 新投稿：$base" >> "$tmpfile"
+            echo "" >> "$tmpfile"
+            echo "**投稿者姓名：** $name  " >> "$tmpfile"
+            echo "**投稿者班级：** $class  " >> "$tmpfile"
+            echo "**作品类型：** $type  " >> "$tmpfile"
+            echo "**一句话：** ${sentence:-无}  " >> "$tmpfile"
+            echo "**人像授权：** $auth_text  " >> "$tmpfile"
+            echo "" >> "$tmpfile"
+            echo "---" >> "$tmpfile"
+            echo "" >> "$tmpfile"
+            echo "### 🖼️ 作品预览" >> "$tmpfile"
+            echo "![图片预览](./$file)" >> "$tmpfile"
+            echo "" >> "$tmpfile"
+            echo "---" >> "$tmpfile"
+            echo "" >> "$tmpfile"
+            echo "### 📄 JSON 原始数据" >> "$tmpfile"
+            echo "\`\`\`json" >> "$tmpfile"
+            echo "$json" >> "$tmpfile"
+            echo "\`\`\`" >> "$tmpfile"
+
+            # ---- 使用临时文件创建 Issue ----
             gh issue create \
               --title "新投稿：$base" \
-              --body-file "$body_file"
+              --body-file "$tmpfile"
 
-            rm "$body_file"
+            # ---- 删除临时文件 ----
+            rm "$tmpfile"
+
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
